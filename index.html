@@ -576,7 +576,7 @@ const PROBE_CONCURRENCY = 3;
 const PROBE_TIMEOUT = 9000;
 const HEALTH_TTL = 3 * 60 * 60 * 1000;
 const FAV_KEY = "redio-tz-favs";
-const HEALTH_KEY = "redio-tz-health-v2";
+const HEALTH_KEY = "redio-tz-health-v3";
 const FX_KEY = "redio-tz-fx";
 
 const state = {
@@ -645,17 +645,17 @@ function tint(name) {
 }
 
 /* Plain http:// streams are blocked as mixed content on https pages.
-   Built-in ones are relayed through our own domain via vercel.json rewrites (/s/...).
+   Built-in ones are relayed through our own domain via the /api/stream function.
    Anything else (e.g. stations you add) falls back to an https:// upgrade attempt. */
 const HTTP_RELAY = {
-    "http://78.129.185.84:15225/;": "/s/icefm",
-    "http://37.157.242.104:18275/;": "/s/jcfm",
-    "http://95.154.196.37:34662/;": "/s/mradio",
-    "http://82.145.63.6:4819/;": "/s/rafikifm",
-    "http://uk5freenew.listen2myradio.com:15602/;": "/s/hominagospelradio",
-    "http://uk19freenew.listen2myradio.com:6548/;": "/s/uplandsfm",
-    "http://uk19freenew.listen2myradio.com:11854/;": "/s/selousfm",
-    "http://eu6.fastcast4u.com:5306/;": "/s/cloudsfm"
+    "http://78.129.185.84:15225/;": "/api/stream?id=icefm",
+    "http://37.157.242.104:18275/;": "/api/stream?id=jcfm",
+    "http://95.154.196.37:34662/;": "/api/stream?id=mradio",
+    "http://82.145.63.6:4819/;": "/api/stream?id=rafikifm",
+    "http://uk5freenew.listen2myradio.com:15602/;": "/api/stream?id=hominagospelradio",
+    "http://uk19freenew.listen2myradio.com:6548/;": "/api/stream?id=uplandsfm",
+    "http://uk19freenew.listen2myradio.com:11854/;": "/api/stream?id=selousfm",
+    "http://eu6.fastcast4u.com:5306/;": "/api/stream?id=cloudsfm"
 };
 
 function secure(u) {
