@@ -573,7 +573,7 @@ const PROBE_CONCURRENCY = 3;
 const PROBE_TIMEOUT = 9000;
 const HEALTH_TTL = 3 * 60 * 60 * 1000;
 const FAV_KEY = "redio-tz-favs";
-const HEALTH_KEY = "redio-tz-health";
+const HEALTH_KEY = "redio-tz-health-v2";
 const FX_KEY = "redio-tz-fx";
 
 const state = {
@@ -641,7 +641,17 @@ function tint(name) {
     return `hsl(${h % 360} 42% 34%)`;
 }
 
-const streamURL = s => (s.useAlt && s.alt) ? s.alt : (s.url || `${API}/listen/${s.id}/channel.mp3`);
+/* Plain http:// streams are blocked as "mixed content" when this page is served over https.
+   Set STREAM_PROXY to your deployed worker URL (see stream-proxy-worker.js), e.g.
+   "https://radio-proxy.yourname.workers.dev". Leave "" to just try an https:// upgrade. */
+const STREAM_PROXY = "";
+
+function secure(u) {
+    if (location.protocol !== "https:" || !/^http:\/\//i.test(u)) return u;
+    return STREAM_PROXY ? `${STREAM_PROXY}?url=${encodeURIComponent(u)}` : u.replace(/^http:/i, "https:");
+}
+
+const streamURL = s => secure((s.useAlt && s.alt) ? s.alt : (s.url || `${API}/listen/${s.id}/channel.mp3`));
 
 const closeSvg = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>`;
 
