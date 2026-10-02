@@ -6,7 +6,7 @@
     }
   ],
   "functions": {
-    "api/stream.js": {
+    "api/relay.js": {
       "maxDuration": 300
     }
   }
