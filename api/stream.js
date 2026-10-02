@@ -1,4 +1,4 @@
-const http = require("http");
+const net = require("net");
 
 // Only these streams can be relayed (keeps this from being an open proxy).
 const STREAMS = {
@@ -12,6 +12,8 @@ const STREAMS = {
   "cloudsfm": "http://eu6.fastcast4u.com:5306/;"
 };
 
+// Raw TCP on purpose: old Shoutcast servers answer "ICY 200 OK", which Node's
+// HTTP client rejects as a parse error.
 module.exports = (req, res) => {
   const target = STREAMS[req.query.id];
   if (!target) {
@@ -19,28 +21,57 @@ module.exports = (req, res) => {
     return res.end("Unknown stream");
   }
 
-  const upstreamReq = http.get(
-    target,
-    {
-      headers: { "Icy-MetaData": "0", "User-Agent": "Mozilla/5.0" },
-      insecureHTTPParser: true, // tolerate Shoutcast "ICY 200 OK" responses
-      timeout: 10000,
-    },
-    upstream => {
-      res.writeHead(200, {
-        "Content-Type": upstream.headers["content-type"] || "audio/mpeg",
-        "Cache-Control": "no-store",
-        "Access-Control-Allow-Origin": "*",
-      });
-      upstream.pipe(res);
-      upstream.on("error", () => res.end());
-      req.on("close", () => upstreamReq.destroy());
-    }
-  );
+  const debug = req.query.debug === "1";
+  const u = new URL(target);
+  const sock = net.connect({ host: u.hostname, port: u.port || 80 });
+  let head = Buffer.alloc(0);
+  let started = false;
 
-  upstreamReq.on("timeout", () => upstreamReq.destroy());
-  upstreamReq.on("error", () => {
-    if (!res.headersSent) res.statusCode = 502;
-    res.end();
+  const fail = (code, msg) => {
+    if (!res.headersSent) {
+      res.statusCode = code;
+      res.setHeader("Content-Type", "text/plain");
+    }
+    res.end(debug ? msg : undefined);
+    sock.destroy();
+  };
+
+  sock.setTimeout(10000, () => { if (!started) fail(504, "upstream timeout"); });
+  sock.on("error", err => fail(502, `connect error: ${err.code || ""} ${err.message}`));
+  req.on("close", () => sock.destroy());
+
+  sock.on("connect", () => {
+    sock.write(
+      `GET ${u.pathname}${u.search} HTTP/1.0\r\nHost: ${u.host}\r\n` +
+      `User-Agent: Mozilla/5.0\r\nIcy-MetaData: 0\r\nConnection: close\r\n\r\n`
+    );
   });
+
+  sock.on("data", chunk => {
+    if (started) return res.write(chunk);
+
+    head = Buffer.concat([head, chunk]);
+    const end = head.indexOf("\r\n\r\n");
+    if (end === -1) return;
+
+    const headText = head.slice(0, end).toString("latin1");
+    const body = head.slice(end + 4);
+    const status = headText.split("\r\n")[0];
+    const type = (headText.match(/^content-type:\s*(.+)$/im) || [])[1] || "audio/mpeg";
+
+    if (!/\s2\d\d(\s|$)/.test(status)) return fail(502, `upstream said: ${status}\n${headText}`);
+    if (debug) { res.setHeader("Content-Type", "text/plain"); res.end(`${status}\n${headText}`); return sock.destroy(); }
+
+    started = true;
+    sock.setTimeout(0);
+    res.writeHead(200, {
+      "Content-Type": type.trim(),
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*",
+    });
+    if (body.length) res.write(body);
+  });
+
+  sock.on("end", () => res.end());
 };
+          
